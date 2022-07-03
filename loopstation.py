@@ -10,9 +10,6 @@ from pydub import AudioSegment
 from tkinter import *
 from tkinter import ttk, messagebox
 
-gui = Tk()
-gui.geometry('500x500')
-
 
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
@@ -52,59 +49,22 @@ def play_audio(audio_file: str, loop=True):
   player.terminate()
 
 
-def key_press_int(key_press):
-    try:
-        int_key_press = int(key_press)
-        return int_key_press
-    except ValueError:
-        return key_press
-
-
-def play_pause_process(process):
-    status = process.status()
-    if status == 'running':
-        process.suspend()
-    else:
-        process.resume()
-    #print(f'process {process} changed from {status} to {process.status}')
-
 
 def manipulate_all_sounds(key_press, recording_processes):
     #need to update this function to take the same error handling as the manipulate single audio function
     print(f'Keypress chosen: {key_press}')
-    if key_press == 'p': # p => pause all
-        for recording in recording_processes:
-            if recording.status() == 'running':
-                recording.suspend()
-    elif key_press == 'u': # u => unpause all
-        for recording in recording_processes:
-            if recording.status() == 'stopped':
-                recording.resume()
-    elif key_press == 'i': # i => invert all (if sound is playing pause it, if sound is paused play it)
-        for recording in recording_processes:
-            play_pause_process(recording)
-    elif key_press == '\\':
-        sys.exit()
-    else:
-        logging.warning(f'{key_press} is not a valid input')
-
-
-
-def manipulate_single_sound(recording, file_path):
-    get_playing_sound_files()
-    if recording.is_alive():
-        play_pause_process(SOUND_PROCESSES[recording.pid]['process'])
-    else:
-        if os.path.isfile(recording.name + '.wav'):
-            recording.start()
-            SOUND_PROCESSES[recording.pid] = {'file_path': file_path, 'process': psutil.Process(recording.pid)}
+    for recording in recording_processes:
+        if key_press == 'p': # p => pause all
+            recording.pause_process()
+        elif key_press == 'u': # u => unpause all
+            recording.play_process()
+        elif key_press == 'i': # i => invert all (if sound is playing pause it, if sound is paused play it)
+                recording.play_pause_process()
+        elif key_press == '\\':
+            sys.exit()
         else:
-            messagebox.showinfo(f"Sound not found for: {recording.name}", "Please record a sound before trying to play/pause it.")
+            logging.warning(f'{key_press} is not a valid input')
 
-
-def test_keyboard_input():
-    key_press = keyboard.read_key()
-    return key_press
 
 
 def helloCallBack():
@@ -112,41 +72,12 @@ def helloCallBack():
     messagebox.showinfo("Hello Python", "Hello World")
 
 
-def record_audio(recording_file_loc):
-    audio = pyaudio.PyAudio()
-    stream = audio.open(format=FORMAT, channels=CHANNELS,
-                    rate=RATE, input=True,input_device_index = 1,
-                    frames_per_buffer=CHUNK)
-    print("recording started")
-    Recordframes = []
 
-    for i in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
-        data = stream.read(CHUNK)
-        Recordframes.append(data)
-    print("recording stopped")
-    stream.stop_stream()
-    stream.close()
-    audio.terminate()
-
-    save_recording(recording_file_loc, Recordframes)
-
-
-def save_recording(recording_file_loc, recording):
-    audio = pyaudio.PyAudio()
-    waveFile = wave.open(f'{recording_file_loc}', 'wb')
-    waveFile.setnchannels(CHANNELS)
-    waveFile.setsampwidth(audio.get_sample_size(FORMAT))
-    waveFile.setframerate(RATE)
-    waveFile.writeframes(b''.join(recording))
-    waveFile.close()
-    audio.terminate()
-
-
-def get_playing_sound_files():
+def get_playing_sound_files(sounds):
     playing_sounds = []
-    for name, values in SOUND_PROCESSES.items():
-        if values['process'].status() == 'running':
-            playing_sounds.append(values['file_path'])
+    for sound in sounds:
+        if sound.is_playing():
+            playing_sounds.append(sound.sound_file_loc)
     return playing_sounds
 
 def recording_overlay(recording_file_loc: str):
@@ -154,13 +85,23 @@ def recording_overlay(recording_file_loc: str):
     test_segment = AudioSegment.from_wav(recording_file_loc)
     return None
 
-def record_all_current_sounds_into_one(recording_file_loc: str):
-    temp_sound = AudioSegment.from_wav(recording_file_loc)
-    audio_segments = [AudioSegment.from_wav(file) for file in get_playing_sound_files() if file != recording_file_loc]
-    for sound_playing in audio_segments:
-        temp_sound = temp_sound.overlay(sound_playing)
-    temp_sound.export(recording_file_loc, format='wav')
-    print('Sounds overlayed')
+def record_all_current_sounds_into_one(all_sounds, sound):
+    sound_file_loc = sound.sound_file_loc
+    audio_segments = [AudioSegment.from_wav(file) for file in get_playing_sound_files(all_sounds) if
+                      file != sound_file_loc]
+    if audio_segments:
+        if sound.file_exists():
+            temp_sound = AudioSegment.from_wav(sound_file_loc)
+        else:
+            temp_sound = ''
+
+        for sound_playing in audio_segments:
+            if temp_sound == '':
+                temp_sound = sound_playing
+            else:
+                temp_sound = temp_sound.overlay(sound_playing)
+        temp_sound.export(sound_file_loc, format='wav')
+        print('Sounds overlayed')
 
 
 
