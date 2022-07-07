@@ -1,6 +1,7 @@
 import os
 from tkinter import messagebox
 
+import record_audio as ra
 import pyaudio
 import psutil
 import wave
@@ -22,23 +23,14 @@ class LoopSound:
         self.sound_file_loc = sound_file_loc
         self.mp_process = mp_process
 
-    def record_audio(self):
-        audio = pyaudio.PyAudio()
-        stream = audio.open(format=FORMAT, channels=CHANNELS,
-                            rate=RATE, input=True, input_device_index=1,
-                            frames_per_buffer=CHUNK)
-        print("recording started")
-        Recordframes = []
+    def start_recording(self):
+        # add the ability to just click start stop recording in 1 button instead of 2 separate buttons
+        # also add the ability to record multiple sounds at once (press record sound 1, then without stopping, press
+        # record sound 2, then stop sound 1 and sound 2 recording)
+        ra.start(self.sound_file_loc)
 
-        for i in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
-            data = stream.read(CHUNK)
-            Recordframes.append(data)
-        print("recording stopped")
-        stream.stop_stream()
-        stream.close()
-        audio.terminate()
-
-        self.save_recording(Recordframes)
+    def stop_recording(self):
+        ra.stop()
 
     def save_recording(self, recording):
         audio = pyaudio.PyAudio()
